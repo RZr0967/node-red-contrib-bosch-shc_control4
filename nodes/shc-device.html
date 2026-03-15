@@ -1,280 +1,274 @@
 <script type="text/javascript">
-    RED.nodes.registerType('shc-device', {
-        category: 'BoschSmartHome',
-        color: '#0096ff',
+(function() {
+    function valueOrEmpty(value) {
+        return value === undefined || value === null ? "" : value;
+    }
+
+    function appendOption(select, value, label) {
+        select.append($("<option></option>").val(value).text(label));
+    }
+
+    function buildStateOptions(serviceId, stateSelect) {
+        stateSelect.empty();
+        appendOption(stateSelect, "", "complete payload");
+
+        switch (serviceId) {
+            case "BinarySwitch":
+                appendOption(stateSelect, "on", "on");
+                break;
+
+            case "ShutterControl":
+                appendOption(stateSelect, "level", "level");
+                appendOption(stateSelect, "operationState", "operationState");
+                break;
+
+            case "RoomClimateControl":
+                appendOption(stateSelect, "currentTemperature", "currentTemperature");
+                appendOption(stateSelect, "targetTemperature", "targetTemperature");
+                appendOption(stateSelect, "hvacMode", "hvacMode");
+                appendOption(stateSelect, "hvacModes", "hvacModes");
+                appendOption(stateSelect, "setpointTemperature", "setpointTemperature (raw)");
+                appendOption(stateSelect, "operationMode", "operationMode (raw)");
+                appendOption(stateSelect, "summerMode", "summerMode (raw)");
+                appendOption(stateSelect, "temperature", "temperature (raw)");
+                appendOption(stateSelect, "roomTemperature", "roomTemperature (raw)");
+                break;
+
+            case "MultiLevelSwitch":
+                appendOption(stateSelect, "level", "level");
+                break;
+
+            case "HueColorTemperature":
+                appendOption(stateSelect, "colorTemperature", "colorTemperature");
+                break;
+
+            case "HSBColorActuator":
+                appendOption(stateSelect, "rgb", "rgb");
+                break;
+
+            case "HueBlinkingActuator":
+                appendOption(stateSelect, "blinkingState", "blinkingState");
+                break;
+
+            case "SmokeDetectorCheck":
+                appendOption(stateSelect, "value", "value");
+                break;
+
+            case "PowerSwitch":
+                appendOption(stateSelect, "switchState", "switchState");
+                break;
+
+            case "PowerMeter":
+                appendOption(stateSelect, "energyConsumption", "energyConsumption");
+                appendOption(stateSelect, "powerConsumption", "powerConsumption");
+                break;
+
+            case "HeatingCircuit":
+                appendOption(stateSelect, "setpointTemperature", "setpointTemperature");
+                appendOption(stateSelect, "roomTemperature", "roomTemperature");
+                appendOption(stateSelect, "operationMode", "operationMode");
+                appendOption(stateSelect, "summerMode", "summerMode");
+                break;
+
+            case "PrivacyMode":
+            case "CameraNotification":
+            case "CameraLight":
+            case "IntrusionDetectionControl":
+                appendOption(stateSelect, "value", "value");
+                break;
+
+            case "PresenceSimulationConfiguration":
+                appendOption(stateSelect, "enabled", "enabled");
+                break;
+
+            default:
+                appendOption(stateSelect, "value", "value");
+                break;
+        }
+    }
+
+    function buildServiceOptions(serviceSelect) {
+        serviceSelect.empty();
+
+        appendOption(serviceSelect, "", "device metadata");
+        appendOption(serviceSelect, "all", "all");
+        appendOption(serviceSelect, "BinarySwitch", "BinarySwitch");
+        appendOption(serviceSelect, "ShutterControl", "ShutterControl");
+        appendOption(serviceSelect, "RoomClimateControl", "RoomClimateControl");
+        appendOption(serviceSelect, "HeatingCircuit", "HeatingCircuit");
+        appendOption(serviceSelect, "MultiLevelSwitch", "MultiLevelSwitch");
+        appendOption(serviceSelect, "HSBColorActuator", "HSBColorActuator");
+        appendOption(serviceSelect, "HueColorTemperature", "HueColorTemperature");
+        appendOption(serviceSelect, "HueBlinkingActuator", "HueBlinkingActuator");
+        appendOption(serviceSelect, "SmokeDetectorCheck", "SmokeDetectorCheck");
+        appendOption(serviceSelect, "PowerSwitch", "PowerSwitch");
+        appendOption(serviceSelect, "PowerMeter", "PowerMeter");
+        appendOption(serviceSelect, "PrivacyMode", "PrivacyMode");
+        appendOption(serviceSelect, "CameraNotification", "CameraNotification");
+        appendOption(serviceSelect, "CameraLight", "CameraLight");
+        appendOption(serviceSelect, "IntrusionDetectionControl", "IntrusionDetectionControl");
+        appendOption(serviceSelect, "PresenceSimulationConfiguration", "PresenceSimulationConfiguration");
+    }
+
+    RED.nodes.registerType("shc-device", {
+        category: "Bosch Smart Home",
+        color: "#00A1DE",
         defaults: {
-            shc: {
-                value: '',
-                type: 'shc-config',
-                required: true,
-            },
-            poll: {
-                value: true,
-            },
-            device: {
-                value: '',
-                required: true,
-            },
-            service: {
-                value: '',
-            },
-            state: {
-                value: '',
-            },
-            name: {
-                value: '',
-            },
+            name: { value: "" },
+            shc: { value: "", type: "shc-config", required: true },
+            device: { value: "", required: true },
+            service: { value: "" },
+            state: { value: "" },
+            poll: { value: true }
         },
         inputs: 1,
         outputs: 1,
-        icon: 'bosch-smarthome-icon.png',
-        label() {
-            return this.name || this.device.split('|')[0] || 'shc device';
+        icon: "font-awesome/fa-home",
+        label: function() {
+            return this.name || "shc device";
         },
-        paletteLabel: 'device',
-        oneditprepare() {
-            const supportedDevices = 'CAMERA_360,CAMERA_EYES,BBL,BSM,'
-                        + 'INTRUSION_DETECTION_SYSTEM,MD,PSM,PRESENCE_SIMULATION_SERVICE,'
-                        + 'ROOM_CLIMATE_CONTROL,SD,SWD,TWINGUARD,WRC2,TRV,THB,BWTH,'
-                        + 'LOGAMATIC_WEB_KM200,HEATING_CIRCUIT,HUE_LIGHT_ROOM_CONTROL,'
-                        + 'HUE_LIGHT,LEDVANCE_LIGHT,PLUG_COMPACT,SWD2,SWD2_PLUS,WLS,TRV_GEN2,'
-                        + 'SMOKE_DETECTOR2,CAMERA_INDOOR_GEN2,OUTDOOR_SIRENE,RTH2_BAT,RTH2_230';
-            const supportedServices = 'AirQualityLevel,BatteryLevel,HumidityLevel,'
-                        + 'IntrusionDetectionControl,Keypad,LatestMotion,'
-                        + 'PowerMeter,PowerSwitch,PresenceSimulationConfiguration,'
-                        + 'PrivacyMode,CameraNotification,CameraLight,RoomClimateControl,ShutterContact,'
-                        + 'ShutterControl,SmokeDetectorCheck,TemperatureLevel,ValveTappet,'
-                        + 'MultiLevelSwitch,HSBColorActuator,HueColorTemperature,HueBlinkingActuator,'
-                        + 'BinarySwitch,VibrationSensor,WaterLeakageSensor,WaterLeakageSensorTilt,'
-                        + 'Alarm,CommunicationQuality,ChildProtection,BlindsControl,SilentMode';
+        oneditprepare: function() {
+            var node = this;
+            var deviceSelect = $("#node-input-device");
+            var serviceSelect = $("#node-input-service");
+            var stateSelect = $("#node-input-state");
 
-            const deviceBoxId = '#node-input-device';
-            const deviceBoxText = '<input type="text" id="node-input-device" placeholder="Select a device" style="width: 100%;">';
-            const deviceBoxSelect = '<select id="node-input-device" style="width: 100%;" />';
-
-            function lookupDevices() {
-                const shcConfig = RED.nodes.node($('#node-input-shc').val());
-                const selectDevice = $('#node-input-device');
-
-                function format(device, roomName) {
-                    let services = '';
-
-                    try {
-                        services = device.deviceServiceIds.filter(element => supportedServices.includes(element));
-                        if (services && services.length > 0) {
-                            services = services.reduce((acc, element) => acc + ',' + element);
-                        } else {
-                            services = "not supported";
-                        }
-                    } catch (error) {
-                        console.log(error);
-                        RED.notify('Unexpected Device Service Array', 'error');
-                    }
-
-                    return $('<option/>')
-                        .val(device.name + '|' + device.id + '|' + device.deviceModel + '|' + services + '|' + roomName)
-                        .text(device.name);
-                }
-
-                function getRoomName(roomId, rooms) {
-                    let roomName = 'No room defined';
-                    rooms.forEach(element => {
-                        if (element.id === roomId) {
-                            roomName = element.name;
-                        }
-                    });
-                    return roomName;
-                }
-    
-                function isSupported(model) {
-                    return (supportedDevices.includes(model));
-                }
-
-                function filterDevices(roomId, devices) {
-                    const filterList = [];
-                    devices.forEach(element => {
-                        if (isSupported(element.deviceModel) && element.roomId === roomId) {
-                            filterList.push(element);
-                        }
-                    });
-                    return filterList;
-                }
-
-                function filterUndefinedRoom(devices) {
-                    const filterList = [];
-                    devices.forEach(element => {
-                        if (isSupported(element.deviceModel) && element.roomId === undefined) {
-                            filterList.push(element);
-                        }
-                    });
-                    return filterList;
-                }
-
-                function populate(rooms, devices) {
-                    if (devices.length > 0 && rooms.length > 0) {
-                        const optGroup = $('<optgroup label="Devices"></optgroup>');
-                        selectDevice.append(optGroup);
-                        optGroup.append($('<option/>')
-                            .val('all|all|all|' + supportedServices + '|')
-                            .text('All Devices'));
-
-                        // Service in this context means e.g. alarm system, presence simulation,
-                        // which is typically not assign to a specific room
-                        const serviceList = filterUndefinedRoom(devices);
-                        if (serviceList.length > 0) {
-                            const serviceGroup = $('<optgroup label="Without Room"></optgroup>');
-                            selectDevice.append(serviceGroup);
-                            serviceList.reduce((parent, service) => {
-                                parent.append(format(service));
-                                return parent;
-                            }, serviceGroup);
-                        }
-
-                        rooms.forEach(element => {
-                            const roomName = getRoomName(element.id, rooms);
-                            const deviceList = filterDevices(element.id, devices);
-
-                            const roomGroup = $('<optgroup label="' + roomName + '"></optgroup>');
-                            selectDevice.append(roomGroup);
-                            deviceList.reduce((parent, device) => {
-                                parent.append(format(device, roomName));
-                                return parent;
-                            }, roomGroup);
-                        });
-
-                        RED.notify('Got it, please select a device', 'notice');
-                    } else {
-                        RED.notify('No device or no room found', 'notice');
-                    }
-                }
-
-                if (shcConfig && shcConfig.state && shcConfig.state === 'PAIRED') {
-                    RED.notify('Getting devices and rooms, please wait...', 'notice');
-                    $.getJSON('shc/devices', {config: shcConfig.id})
-                        .done(devices => {
-                            $.getJSON('shc/rooms', {config: shcConfig.id})
-                                .done(rooms => {
-                                    populate(rooms, devices);
-                                })
-                                .fail(err => {
-                                    RED.notify(err.responseText, 'error');
-                                });
-                        })
-                        .fail(err => {
-                            RED.notify(err.responseText, 'error');
-                        });
-                } else if (shcConfig) {
-                    RED.notify('Client not added to SHC', 'notice');
-                } else {
-                    RED.notify('Select a controller or create one', 'notice');
-                }
+            function restoreSelection(select, value) {
+                select.val(valueOrEmpty(value));
             }
 
-            $('#node-input-lookup-device').click(() => {
-                const value = $(deviceBoxId).val();
-
-                if ($(deviceBoxId).attr('type') === 'text') {
-                    $(deviceBoxId).replaceWith(deviceBoxSelect);
-                    lookupDevices();
-                } else {
-                    $(deviceBoxId).replaceWith(deviceBoxText);
-                }
-
-                $(deviceBoxId).val(value);
-            });
-
-            const serviceBoxId = '#node-input-service';
-            const serviceBoxText = '<input type="text" id="node-input-service" placeholder="Leave empty for device meta data" style="width: 100%;">';
-            const serviceBoxSelect = '<select id="node-input-service" style="width: 100%;" />';
-
-            function lookupServices(sVal, dVal) {
-                if (dVal) {
-                    const selectService = $('#node-input-service');
-
-                    const optGroup = $('<optgroup label="Device Services"></optgroup>');
-                    selectService.append(optGroup);
-                    optGroup.append($('<option/>').val('all').text('All Device Services'));
-                    const sList = dVal.split('|')[3].split(',');
-                    sList.forEach(element => {
-                        optGroup.append($('<option/>').val(element).text(element));
-                    });
-                }
+            function refreshStates() {
+                var selectedState = stateSelect.val();
+                buildStateOptions(serviceSelect.val(), stateSelect);
+                restoreSelection(stateSelect, node.state || selectedState);
             }
 
-            $('#node-input-lookup-service').click(() => {
-                const sVal = $(serviceBoxId).val();
-                const dVal = $(deviceBoxId).val();
+            function refreshServices() {
+                var selectedService = serviceSelect.val();
+                buildServiceOptions(serviceSelect);
+                restoreSelection(serviceSelect, node.service || selectedService);
+                refreshStates();
+            }
 
-                if ($(serviceBoxId).attr('type') === 'text') {
-                    $(serviceBoxId).replaceWith(serviceBoxSelect);
-                    lookupServices(sVal, dVal);
-                } else {
-                    $(serviceBoxId).replaceWith(serviceBoxText);
+            function loadDevices() {
+                deviceSelect.empty();
+                appendOption(deviceSelect, "", "select device");
+                appendOption(deviceSelect, "all|all|||", "all devices");
+
+                var configNode = RED.nodes.node($("#node-input-shc").val());
+                if (!configNode) {
+                    restoreSelection(deviceSelect, node.device);
+                    refreshServices();
+                    return;
                 }
 
-                $(serviceBoxId).val(sVal);
+                if (Array.isArray(configNode.devices)) {
+                    configNode.devices.forEach(function(device) {
+                        var roomName = device.roomName || "";
+                        var optionValue = [
+                            valueOrEmpty(device.name),
+                            valueOrEmpty(device.id),
+                            valueOrEmpty(device.deviceModel),
+                            valueOrEmpty(device.manufacturer),
+                            valueOrEmpty(roomName)
+                        ].join("|");
+
+                        var label = device.name || device.id;
+                        if (roomName) {
+                            label += " (" + roomName + ")";
+                        }
+
+                        appendOption(deviceSelect, optionValue, label);
+                    });
+                }
+
+                restoreSelection(deviceSelect, node.device);
+                refreshServices();
+            }
+
+            $("#node-input-shc").on("change", function() {
+                loadDevices();
             });
+
+            serviceSelect.on("change", function() {
+                node.service = serviceSelect.val();
+                buildStateOptions(serviceSelect.val(), stateSelect);
+                stateSelect.val("");
+            });
+
+            loadDevices();
+            restoreSelection(serviceSelect, node.service);
+            buildStateOptions(serviceSelect.val(), stateSelect);
+            restoreSelection(stateSelect, node.state);
         },
+        oneditsave: function() {
+            this.device = $("#node-input-device").val();
+            this.service = $("#node-input-service").val();
+            this.state = $("#node-input-state").val();
+            this.poll = $("#node-input-poll").is(":checked");
+        }
     });
+})();
 </script>
 
 <script type="text/x-red" data-template-name="shc-device">
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
 
     <div class="form-row">
-        <label for="node-input-shc"><i class="fa fa-server"></i> SHC</label>
+        <label for="node-input-shc"><i class="fa fa-cog"></i> SHC</label>
         <input type="text" id="node-input-shc">
     </div>
 
     <div class="form-row">
-        <label for="node-input-poll"><i class="fa fa-feed"></i> Event</label>
-        <div style="display: inline-block; position: relative; width: 70%; height: 20px;">
-            <div style="position: absolute; left: 0px;">
-                <input type="checkbox" id="node-input-poll" checked>
-            </div>
-            <div style="position: relative; left: 20px; top: 3px;">Poll events from SHC</div>
-        </div>
-    </div>
-
-    <div class="form-row" style="white-space: nowrap;">
-        <label for="node-input-device"><i class="fa fa-power-off"></i> Device</label>
-        <div style="display: inline-block; position: relative; width: 70%; height: 20px;">
-          <div style="position: absolute; left: 0px; right: 40px;">
-            <input type="text" id="node-input-device" placeholder="No device specified" style="width: 100%;" />
-          </div>
-          <a id="node-input-lookup-device" class="editor-button" style="position: absolute; right: 0px; top: 0px;">
-            <i class="fa fa-search"></i>
-          </a>
-        </div>
-    </div>
-
-    <div class="form-row" style="white-space: nowrap;">
-        <label for="node-input-service"><i class="fa fa-cog"></i> Service</label>
-        <div style="display: inline-block; position: relative; width: 70%; height: 20px;">
-          <div style="position: absolute; left: 0px; right: 40px;">
-            <input type="text" id="node-input-service" placeholder="Leave empty for device meta data" style="width: 100%;" />
-          </div>
-          <a id="node-input-lookup-service" class="editor-button" style="position: absolute; right: 0px; top: 0px;">
-            <i class="fa fa-search"></i>
-          </a>
-        </div>
+        <label for="node-input-device"><i class="fa fa-plug"></i> Device</label>
+        <select id="node-input-device"></select>
     </div>
 
     <div class="form-row">
-        <label for="node-input-state"><i class="fa fa-check-square"></i> State</label>
-        <input type="text" id="node-input-state" placeholder="State" />
-    </div>
-    
-    <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Name" />
+        <label for="node-input-service"><i class="fa fa-exchange"></i> Service</label>
+        <select id="node-input-service"></select>
     </div>
 
-    <div class="form-tips"><b>Hint:</b> <a href="https://github.com/hxmelab/node-red-contrib-bosch-shc#requesting"> Requesting a device</a>, 
-        in particular all devices, should be done sparingly 
-        (see <a href="https://github.com/BoschSmartHome/bosch-shc-api-docs/tree/master/best_practice#limit-the-number-of-requests-in-a-given-time-period">Bosch Smart Home Local API Documentation</a>).
+    <div class="form-row">
+        <label for="node-input-state"><i class="fa fa-info-circle"></i> State</label>
+        <select id="node-input-state"></select>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-poll"><i class="fa fa-refresh"></i> Poll events</label>
+        <input type="checkbox" id="node-input-poll" style="display:inline-block; width:auto; vertical-align:middle;">
     </div>
 </script>
 
 <script type="text/x-red" data-help-name="shc-device">
-    <p>Receive events and update states on edge devices.</p>
+    <p>Bosch Smart Home device node.</p>
+
+    <p>
+        Select a device, then optionally a service and a specific state field.
+        If no state is selected, the node outputs the complete payload.
+    </p>
+
+    <p>
+        For <b>RoomClimateControl</b>, the node supports normalized climate fields:
+        <code>currentTemperature</code>,
+        <code>targetTemperature</code>,
+        <code>hvacMode</code> and
+        <code>hvacModes</code>.
+    </p>
+
+    <p>
+        Input payload examples for <b>RoomClimateControl</b>:
+    </p>
+
+    <pre>{
+  "temperature": 21.5,
+  "hvacMode": "heat"
+}</pre>
+
+    <pre>"auto"</pre>
+
+    <pre>21.5</pre>
 </script>
